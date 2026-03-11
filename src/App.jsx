@@ -12,59 +12,30 @@ import { TradeStream }            from './components/TradeStream.jsx';
 import { PriceChart, CvdChart }   from './components/Charts.jsx';
 import { HeatmapCanvas }          from './components/HeatmapCanvas.jsx';
 import { FootprintCanvas }        from './components/FootprintCanvas.jsx';
-import { Splitter }               from './components/Splitter.jsx';
+import { DockviewReact }          from 'dockview-react';
+import { TerminalContext }        from './TerminalContext.js';
+import { WidgetRegistry }         from './components/WidgetRegistry.jsx';
 import { AlertPanel, ToastStrip } from './components/AlertPanel.jsx';
 import { fmt as _fmt, fmtQty, fmtTime, SYMBOL_KEYS } from './utils.js';
 import { useDeltaFlow }  from './hooks/useDeltaFlow.js';
 import { DeltaCanvas }   from './components/DeltaCanvas.jsx';
 import { LiqHeatmap }    from './components/LiqHeatmap.jsx';
+import { usePortfolio }  from './hooks/usePortfolio.js';
+import { OrderEntry }    from './components/OrderEntry.jsx';
+import { PositionsPanel } from './components/PositionsPanel.jsx';
 
-const CENTER_TABS = ['HEATMAP', 'CHART', 'FOOTPRINT'];
 const TIMEFRAMES  = ['1m', '5m', '15m', '1h'];
 const TF_KEYS     = { t: '1m', y: '5m', u: '15m', i: '1h' };
-const OB_MIN = 160, OB_MAX = 360, OB_DEFAULT = 220;
-const TS_MIN = 170, TS_MAX = 380, TS_DEFAULT = 240;
 
 // Reverse lookup: key letter → symbol
 const KEY_TO_SYMBOL = Object.fromEntries(Object.entries(SYMBOL_KEYS).map(([s, k]) => [k.toLowerCase(), s]));
 
-function useDragResize(storageKey, defaultW, min, max) {
-  const [width, setWidth] = useLocalStorage(storageKey, defaultW);
-  const widthRef          = useRef(width);
-
-  const onDragStart = useCallback((startX, direction = 1) => {
-    const startW  = widthRef.current;
-    const rafRef  = { current: null };
-    const onMove  = (e) => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const next = Math.min(max, Math.max(min, startW + (e.clientX - startX) * direction));
-        widthRef.current = next;
-        setWidth(next);
-      });
-    };
-    const onUp = () => {
-      cancelAnimationFrame(rafRef.current);
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup',   onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup',   onUp);
-  }, [min, max, setWidth]);
-
-  widthRef.current = width;
-  return [width, onDragStart];
-}
-
 export default function App() {
   const [symbol, setSymbol]               = useLocalStorage('flux_symbol',    'BTCUSDT');
-  const [centerTab, setCenterTab]         = useLocalStorage('flux_tab',       'HEATMAP');
   const [multiExchange, setMultiExchange] = useLocalStorage('flux_multi',     false);
-  const [timeframe, setTimeframe]         = useLocalStorage('flux_timeframe', '1m');
+  const [timeframe, setTimeframe]         = useLocalStorage('flux_tf', '1m');
   const [showAlertPanel, setShowAlertPanel] = useState(false);
-
-  const [obW, startDragOB] = useDragResize('flux_ob_w', OB_DEFAULT, OB_MIN, OB_MAX);
-  const [tsW, startDragTS] = useDragResize('flux_ts_w', TS_DEFAULT, TS_MIN, TS_MAX);
+  const layoutApiRef = useRef(null);
 
   const fmt = useMemo(() => (p) => _fmt(p, symbol), [symbol]);
 
@@ -78,6 +49,35 @@ export default function App() {
     multiExchange ? mergeWith(rawBids, rawAsks) : { bids: rawBids, asks: rawAsks },
     [multiExchange, mergeWith, rawBids, rawAsks]
   );
+
+  const { portfolio, getPositionsWithPnl, placeMarketOrder, closePosition } = usePortfolio();
+  
+  const markPrices = useMemo(() => (ticker ? { [symbol]: ticker.price } : {}), [ticker, symbol]);
+  const activePositions = getPositionsWithPnl(markPrices);
+  
+  const handlePlaceOrder = useCallback((side, sizeUsd, leverage) => {
+    placeMarketOrder(symbol, side, sizeUsd, leverage, bids, asks);
+  }, [placeMarketOrder, symbol, bids, asks]);
+
+  // Dockview initialization
+  const onReady = useCallback((event) => {
+    layoutApiRef.current = event.api;
+
+    const chartPanel = event.api.addPanel({ id: 'chart', component: 'chart', title: 'CHART' });
+    
+    event.api.addPanel({ id: 'footprint', component: 'footprint', title: 'FOOTPRINT', position: { referencePanel: chartPanel, direction: 'within' } });
+    event.api.addPanel({ id: 'heatmap', component: 'heatmap', title: 'HEATMAP', position: { referencePanel: chartPanel, direction: 'within' } });
+    
+    // Set chart as active tab
+    chartPanel.api.setActive();
+
+    const obPanel = event.api.addPanel({ id: 'orderbook', component: 'orderbook', title: 'ORDER BOOK', position: { referencePanel: chartPanel, direction: 'right' } });
+    const tradesPanel = event.api.addPanel({ id: 'trades', component: 'trades', title: 'TRADES', position: { referencePanel: obPanel, direction: 'right' } });
+    event.api.addPanel({ id: 'orderEntry', component: 'orderEntry', title: 'ORDER ENTRY', position: { referencePanel: tradesPanel, direction: 'top' } });
+    event.api.addPanel({ id: 'positions', component: 'positions', title: 'POSITIONS', position: { direction: 'bottom' } });
+    
+  }, []);
+
   const spread = useMemo(() =>
     bids[0] && asks[0] ? asks[0].p - bids[0].p : rawSpread,
     [bids, asks, rawSpread]
@@ -161,103 +161,20 @@ export default function App() {
         multiExchange={multiExchange} setMultiExchange={setMultiExchange}
         alertCount={alerts.filter(a => !a.triggered).length}
         onAlertToggle={() => setShowAlertPanel(v => !v)}
+        layoutApiRef={layoutApiRef}
       />
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-
-        <div style={{ width: `${obW}px`, flexShrink: 0, display: 'flex', minHeight: 0 }}>
-          <OrderBook
-            bids={bids} asks={asks} spread={spread}
-            symbol={symbol} fmt={fmt} fmtQty={fmtQty}
-            multiExchange={multiExchange} exchangeStatus={exchangeStatus}
-          />
+      <TerminalContext.Provider value={{
+        symbol, bids, asks, spread, fmt, fmtQty, fmtTime, trades,
+        klines, timeframe, cvdHist, cvd, deltaBuckets, liqs,
+        frames, tradeLog, alertPrices, ticker,
+        portfolio, activePositions, handlePlaceOrder, closePosition,
+        multiExchange, exchangeStatus
+      }}>
+        <div style={{ flex: 1, position: 'relative' }} className="dockview-theme-dark">
+          <DockviewReact components={WidgetRegistry} onReady={onReady} />
         </div>
-
-        <Splitter onDragStart={(x) => startDragOB(x, 1)} />
-
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '2px',
-            padding: '4px 10px', borderBottom: '1px solid #0f1520',
-            background: '#08090f', flexShrink: 0,
-          }}>
-            {CENTER_TABS.map((tab, idx) => {
-              const active = centerTab === tab;
-              return (
-                <button key={tab} onClick={() => setCenterTab(tab)} style={{
-                  background:   active ? '#0f1e35' : 'transparent',
-                  border:       `1px solid ${active ? '#1d4ed8' : '#111927'}`,
-                  color:        active ? '#60a5fa' : '#2d3f54',
-                  padding:      '2px 8px', borderRadius: '3px',
-                  fontSize:     '9.5px', fontFamily: "'JetBrains Mono', monospace",
-                  fontWeight:   600, cursor: 'pointer', outline: 'none',
-                  letterSpacing: '1px', transition: 'all 0.1s',
-                  title:        `[${idx + 1}]`,
-                }}>
-                  {tab}
-                </button>
-              );
-            })}
-
-            {/* Keyboard hint */}
-            <span style={{ fontSize: '8px', color: '#0c1420', marginLeft: '6px', letterSpacing: '0.5px' }}>
-              B·E·S·N·X·D·V·C·L·O  ·  1·2·3  ·  M·[A]LERT  ·  T·Y·U·I=TF
-            </span>
-
-            <span style={{ marginLeft: 'auto', fontSize: '9px', color: '#1a2535' }}>
-              {centerTab === 'HEATMAP'   && `${frames.length} frames`}
-              {centerTab === 'CHART'     && `${klines.length} klines`}
-              {centerTab === 'FOOTPRINT' && `${footprint.length} candles`}
-            </span>
-          </div>
-
-          {/* Timeframe selector — shown when CHART or FOOTPRINT is active */}
-          {(centerTab === 'CHART' || centerTab === 'FOOTPRINT') && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '3px',
-              padding: '3px 10px', borderBottom: '1px solid #0a1220',
-              background: '#06080d', flexShrink: 0,
-            }}>
-              <span style={{ fontSize: '8px', color: '#1a2535', marginRight: '4px', letterSpacing: '1px' }}>TF</span>
-              {TIMEFRAMES.map((tf, i) => {
-                const active = timeframe === tf;
-                return (
-                  <button key={tf} onClick={() => setTimeframe(tf)} style={{
-                    background:    active ? '#0c1a30' : 'transparent',
-                    border:        `1px solid ${active ? '#1d4ed8' : '#0d1825'}`,
-                    color:         active ? '#60a5fa' : '#1a2d40',
-                    padding:       '1px 7px', borderRadius: '3px',
-                    fontSize:      '9px', fontFamily: "'JetBrains Mono', monospace",
-                    fontWeight:    600, cursor: 'pointer', outline: 'none',
-                    transition:    'all 0.1s',
-                    title:         ['T','Y','U','I'][i],
-                  }}>
-                    {tf}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-            {centerTab === 'HEATMAP'   && <HeatmapCanvas  frames={frames} tradeLog={tradeLog} liqs={liqs} alertPrices={alertPrices} symbol={symbol} />}
-            {centerTab === 'CHART'     && <PriceChart      klines={klines} fmt={fmt} timeframe={timeframe} />}
-            {centerTab === 'FOOTPRINT' && <FootprintCanvas footprint={footprint} symbol={symbol} />}
-          </div>
-
-          <CvdChart cvdHist={cvdHist} cvd={cvd} />
-          <DeltaCanvas buckets={deltaBuckets} />
-          <LiqHeatmap liqs={liqs} />
-        </div>
-
-        <Splitter onDragStart={(x) => startDragTS(x, -1)} />
-
-        <div style={{ width: `${tsW}px`, flexShrink: 0, display: 'flex', minHeight: 0 }}>
-          <TradeStream trades={trades} fmt={fmt} fmtQty={fmtQty} fmtTime={fmtTime} />
-        </div>
-
-      </div>
+      </TerminalContext.Provider>
 
       {/* Alert panel */}
       {showAlertPanel && (

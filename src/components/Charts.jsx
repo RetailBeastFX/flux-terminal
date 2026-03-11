@@ -1,12 +1,16 @@
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   ResponsiveContainer,
   Tooltip,
   ReferenceLine,
+  ReferenceDot
 } from 'recharts';
+import { useIndicators } from '../hooks/useIndicators.js';
+import { useLiquiditySweeps } from '../hooks/useLiquiditySweeps.js';
 
 // ─── Custom Tooltip ──────────────────────────────────────────────────────────
 function ChartTooltip({ active, payload, label, formatter }) {
@@ -33,6 +37,9 @@ const TF_INTERVALS = { '1m': 23, '5m': 11, '15m': 7, '1h': 5, '4h': 3 };
 
 export function PriceChart({ klines, fmt, timeframe = '1m' }) {
   const xInterval = TF_INTERVALS[timeframe] ?? 23;
+  const enrichedKlines = useIndicators(klines);
+  const { sweeps, activePivots } = useLiquiditySweeps(klines);
+
   return (
     <div style={{ flex: 1, position: 'relative', padding: '4px 0 0' }}>
       <div style={{
@@ -50,8 +57,17 @@ export function PriceChart({ klines, fmt, timeframe = '1m' }) {
         PRICE · {timeframe.toUpperCase()}
       </div>
 
+      <div style={{
+        position: 'absolute', top: 10, right: 60, zIndex: 2, pointerEvents: 'none',
+        display: 'flex', gap: '8px', fontSize: '9px', fontFamily: "'JetBrains Mono', monospace"
+      }}>
+        <span style={{ color: '#fbbf24' }}>EMA8</span>
+        <span style={{ color: '#f87171' }}>EMA21</span>
+        <span style={{ color: '#c084fc' }}>VWAP</span>
+      </div>
+
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={klines} margin={{ top: 24, right: 56, bottom: 0, left: 2 }}>
+        <ComposedChart data={enrichedKlines} margin={{ top: 24, right: 56, bottom: 0, left: 2 }}>
           <defs>
             <linearGradient id="price-grad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%"   stopColor="#3b82f6" stopOpacity={0.22} />
@@ -80,16 +96,34 @@ export function PriceChart({ klines, fmt, timeframe = '1m' }) {
             cursor={{ stroke: '#1e2d40', strokeWidth: 1, strokeDasharray: '3 3' }}
           />
           <Area
-            type="monotone"
-            dataKey="c"
-            stroke="#3b82f6"
-            strokeWidth={1.5}
-            fill="url(#price-grad)"
-            dot={false}
-            activeDot={{ r: 3, fill: '#93c5fd', strokeWidth: 0 }}
+            type="monotone" dataKey="c"
+            stroke="#3b82f6" strokeWidth={1.5} fill="url(#price-grad)"
+            dot={false} activeDot={{ r: 3, fill: '#93c5fd', strokeWidth: 0 }}
             isAnimationActive={false}
           />
-        </AreaChart>
+
+          {/* Unbroken Pivots (Liquidity Pools) */}
+          {activePivots?.map((p, i) => (
+            <ReferenceLine 
+              key={`piv-${i}`} y={p.price} 
+              stroke={p.type === 'high' ? 'rgba(248,113,113,0.3)' : 'rgba(34,211,160,0.3)'} 
+              strokeDasharray="4 4" strokeWidth={1}
+            />
+          ))}
+
+          {/* Sweeps (Stop Hunts) */}
+          {sweeps?.map((s, i) => (
+            <ReferenceDot 
+              key={`swp-${i}`} x={s.time} y={s.price} r={4}
+              fill={s.type === 'sweep_high' ? '#f87171' : '#22d3a0'} stroke="none"
+              label={{ position: s.type === 'sweep_high' ? 'top' : 'bottom', value: 'SWEEP', fill: '#e2e8f0', fontSize: 8, fontFamily: 'monospace' }}
+            />
+          ))}
+
+          <Line type="monotone" dataKey="ema8" stroke="#fbbf24" strokeWidth={1} dot={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey="ema21" stroke="#f87171" strokeWidth={1} dot={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey="vwap" stroke="#c084fc" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} />
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );

@@ -7,7 +7,7 @@ export function TradeStream({ trades, fmt, fmtQty, fmtTime }) {
 
   return (
     <div style={{
-      width:       '230px',
+      width:       '100%',
       flexShrink:  0,
       borderLeft:  '1px solid #0f1520',
       display:     'flex',

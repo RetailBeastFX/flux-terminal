@@ -8,8 +8,28 @@ const STATUS_COLORS = {
   error:        '#f87171',
 };
 
-export function Header({ symbol, setSymbol, ticker, status, fmt, multiExchange, setMultiExchange, alertCount = 0, onAlertToggle }) {
+export function Header({ symbol, setSymbol, ticker, status, fmt, multiExchange, setMultiExchange, alertCount = 0, onAlertToggle, layoutApiRef }) {
   const sc = STATUS_COLORS[status] || '#8892a4';
+
+  const handleSaveLayout = () => {
+    if (layoutApiRef?.current) {
+      const layoutObj = layoutApiRef.current.toJSON();
+      localStorage.setItem('flux_saved_layout', JSON.stringify(layoutObj));
+      console.log('Layout saved:', layoutObj);
+      alert('Layout saved to local storage!');
+    }
+  };
+
+  const handleLoadLayout = () => {
+    if (layoutApiRef?.current) {
+      const saved = localStorage.getItem('flux_saved_layout');
+      if (saved) {
+        layoutApiRef.current.fromJSON(JSON.parse(saved));
+      } else {
+        alert('No saved layout found.');
+      }
+    }
+  };
 
   return (
     <header style={{
@@ -158,6 +178,52 @@ export function Header({ symbol, setSymbol, ticker, status, fmt, multiExchange, 
           ⚑{alertCount > 0 && <sup style={{ fontSize: '8px', marginLeft: '1px' }}>{alertCount}</sup>}
         </button>
       )}
+
+      {/* Layout buttons */}
+      <div style={{ display: 'flex', gap: '4px', marginLeft: '8px' }}>
+        <button
+          onClick={handleLoadLayout}
+          title="Load saved layout"
+          style={{
+            background:    'transparent',
+            border:        `1px solid #111927`,
+            color:         '#60a5fa',
+            padding:       '2px 8px',
+            borderRadius:  '3px',
+            fontSize:      '9.5px',
+            fontFamily:    "'JetBrains Mono', monospace",
+            fontWeight:    600,
+            cursor:        'pointer',
+            outline:       'none',
+            transition:    'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#131b27'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          LOAD
+        </button>
+        <button
+          onClick={handleSaveLayout}
+          title="Save layout to local storage"
+          style={{
+            background:    'transparent',
+            border:        `1px solid #111927`,
+            color:         '#fbbf24',
+            padding:       '2px 8px',
+            borderRadius:  '3px',
+            fontSize:      '9.5px',
+            fontFamily:    "'JetBrains Mono', monospace",
+            fontWeight:    600,
+            cursor:        'pointer',
+            outline:       'none',
+            transition:    'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#131b27'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          SAVE
+        </button>
+      </div>
 
       {/* Connection status */}
       <div style={{
