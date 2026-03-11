@@ -22,6 +22,21 @@ export default defineConfig({
         rewrite: path => path.replace(/^\/binance-ws/, ''),
         secure: true,
       },
+      // Proxy MMT REST API
+      '/mmt-api': {
+        target: 'https://eu-central-1.mmt.gg',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/mmt-api/, ''),
+        secure: true,
+      },
+      // Proxy MMT WS
+      '/mmt-ws': {
+        target: 'wss://eu-central-1.mmt.gg',
+        changeOrigin: true,
+        ws: true,
+        rewrite: path => path.replace(/^\/mmt-ws/, ''),
+        secure: true,
+      },
     },
   },
 })

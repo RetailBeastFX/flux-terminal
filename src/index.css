@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
-@import 'dockview-core/dockview.css';
+@import 'dockview-core/dist/styles/dockview.css';
 
 *, *::before, *::after {
   box-sizing: border-box;

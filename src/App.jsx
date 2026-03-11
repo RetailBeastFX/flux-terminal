@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import { useBinanceStream }       from './hooks/useBinanceStream.js';
+import { useMmtStream }            from './hooks/useMmtStream.js';
 import { useHeatmapData }         from './hooks/useHeatmapData.js';
 import { useFootprint }           from './hooks/useFootprint.js';
 import { useMultiExchangeBook }   from './hooks/useMultiExchangeBook.js';
@@ -23,6 +23,7 @@ import { LiqHeatmap }    from './components/LiqHeatmap.jsx';
 import { usePortfolio }  from './hooks/usePortfolio.js';
 import { OrderEntry }    from './components/OrderEntry.jsx';
 import { PositionsPanel } from './components/PositionsPanel.jsx';
+import { SettingsModal } from './components/SettingsModal.jsx';
 
 const TIMEFRAMES  = ['1m', '5m', '15m', '1h'];
 const TF_KEYS     = { t: '1m', y: '5m', u: '15m', i: '1h' };
@@ -35,6 +36,7 @@ export default function App() {
   const [multiExchange, setMultiExchange] = useLocalStorage('flux_multi',     false);
   const [timeframe, setTimeframe]         = useLocalStorage('flux_tf', '1m');
   const [showAlertPanel, setShowAlertPanel] = useState(false);
+  const [showSettings, setShowSettings]     = useState(false);
   const layoutApiRef = useRef(null);
 
   const fmt = useMemo(() => (p) => _fmt(p, symbol), [symbol]);
@@ -42,7 +44,7 @@ export default function App() {
   const {
     bids: rawBids, asks: rawAsks, trades, ticker,
     klines, cvd, cvdHist, spread: rawSpread, status,
-  } = useBinanceStream(symbol, timeframe);
+  } = useMmtStream(symbol, timeframe);
 
   const { mergeWith, exchangeStatus } = useMultiExchangeBook(symbol, multiExchange);
   const { bids, asks } = useMemo(() =>
@@ -139,7 +141,11 @@ export default function App() {
       // Feature toggles
       if (k === 'm') { setMultiExchange(v => !v);           return; }
       if (k === 'a') { setShowAlertPanel(v => !v);          return; }
-      if (k === 'escape') { setShowAlertPanel(false);       return; }
+      if (k === 'escape') { 
+        setShowAlertPanel(false); 
+        setShowSettings(false);
+        return; 
+      }
 
       // Timeframe shortcuts
       if (TF_KEYS[k]) { setTimeframe(TF_KEYS[k]); return; }
@@ -162,6 +168,7 @@ export default function App() {
         alertCount={alerts.filter(a => !a.triggered).length}
         onAlertToggle={() => setShowAlertPanel(v => !v)}
         layoutApiRef={layoutApiRef}
+        onSettingsToggle={() => setShowSettings(true)}
       />
 
       <TerminalContext.Provider value={{
@@ -188,6 +195,9 @@ export default function App() {
         />
       )}
 
+      {/* Settings Modal */}
+      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
       {/* Toast notifications */}
       <ToastStrip toasts={toasts} />
 
@@ -197,7 +207,7 @@ export default function App() {
         fontFamily: "'Syne', sans-serif", fontWeight: 700,
         pointerEvents: 'none', userSelect: 'none',
       }}>
-        FLUX TERMINAL · LIVE BINANCE DATA
+        FLUX TERMINAL · LIVE MMT DATA
       </div>
     </div>
   );

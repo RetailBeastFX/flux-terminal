@@ -8,7 +8,7 @@ const STATUS_COLORS = {
   error:        '#f87171',
 };
 
-export function Header({ symbol, setSymbol, ticker, status, fmt, multiExchange, setMultiExchange, alertCount = 0, onAlertToggle, layoutApiRef }) {
+export function Header({ symbol, setSymbol, ticker, status, fmt, multiExchange, setMultiExchange, alertCount = 0, onAlertToggle, layoutApiRef, onSettingsToggle }) {
   const sc = STATUS_COLORS[status] || '#8892a4';
 
   const handleSaveLayout = () => {
@@ -176,6 +176,31 @@ export function Header({ symbol, setSymbol, ticker, status, fmt, multiExchange, 
           }}
         >
           ⚑{alertCount > 0 && <sup style={{ fontSize: '8px', marginLeft: '1px' }}>{alertCount}</sup>}
+        </button>
+      )}
+
+      {/* Settings button */}
+      {onSettingsToggle && (
+        <button
+          onClick={onSettingsToggle}
+          title="Terminal Settings"
+          style={{
+            background:    'transparent',
+            border:        `1px solid #111927`,
+            color:         '#94a3b8',
+            padding:       '2px 8px',
+            borderRadius:  '3px',
+            fontSize:      '12px',
+            cursor:        'pointer',
+            outline:       'none',
+            flexShrink:    0,
+            transition:    'all 0.15s',
+            marginLeft:    '6px'
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#cbd5e1'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; }}
+        >
+          ⚙
         </button>
       )}
 
