@@ -3,6 +3,19 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'vendor-react',    test: /[\\/]node_modules[\\/](react|react-dom|react-is|scheduler)[\\/]/ },
+            { name: 'vendor-dockview', test: /[\\/]node_modules[\\/](dockview-core|dockview-react)[\\/]/ },
+            { name: 'vendor-charts',   test: /[\\/]node_modules[\\/](recharts|d3-[^\\/]+|victory-vendor)[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     open: true,

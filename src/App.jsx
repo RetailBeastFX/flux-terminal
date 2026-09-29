@@ -133,10 +133,10 @@ export default function App() {
         return;
       }
 
-      // Tab shortcuts
-      if (k === '1') { setCenterTab('HEATMAP');   return; }
-      if (k === '2') { setCenterTab('CHART');      return; }
-      if (k === '3') { setCenterTab('FOOTPRINT');  return; }
+      // Tab shortcuts — activate the center dockview tab
+      if (k === '1') { layoutApiRef.current?.getPanel('heatmap')?.api.setActive();   return; }
+      if (k === '2') { layoutApiRef.current?.getPanel('chart')?.api.setActive();      return; }
+      if (k === '3') { layoutApiRef.current?.getPanel('footprint')?.api.setActive();  return; }
 
       // Feature toggles
       if (k === 'm') { setMultiExchange(v => !v);           return; }
